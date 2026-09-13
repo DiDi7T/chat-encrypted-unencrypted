@@ -199,6 +199,9 @@ pip-selfcheck.json
 # Built Visual Studio Code Extensions
 *.vsix
 
+# TLS credentials generated locally for the encrypted-chat laboratory.
+backend_encrypted/certificates/*.pem
+
 ### VisualStudioCode Patch ###
 # Ignore all local history of files
 .history
