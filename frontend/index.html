@@ -1,103 +1,293 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chat Cifrado vs No Cifrado</title>
+    <title>Encrypted vs. Unencrypted Chat</title>
     <style>
-        body { font-family: Arial, sans-serif; display: flex; flex-direction: column; align-items: center; background-color: #f4f4f9; margin: 0; padding: 20px; }
-        .controls { margin-bottom: 20px; }
-        .container { display: flex; gap: 20px; width: 100%; max-width: 900px; }
-        .chat-box { flex: 1; background: white; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); padding: 15px; display: flex; flex-direction: column; }
-        .messages { flex-grow: 1; height: 300px; overflow-y: auto; border: 1px solid #ccc; padding: 10px; margin-bottom: 10px; background: #fafafa; }
-        .msg { margin-bottom: 8px; font-size: 14px; }
-        .sys-msg { color: gray; font-style: italic; }
-        .chat-input { display: flex; }
-        .chat-input input { flex-grow: 1; padding: 8px; }
-        .chat-input button { padding: 8px 15px; cursor: pointer; }
-        h2 { font-size: 18px; text-align: center; }
-        .unencrypted { border-top: 4px solid #e74c3c; }
-        .encrypted { border-top: 4px solid #2ecc71; }
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #f4f4f9;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .controls,
+        .status-panel,
+        .chat-box {
+            width: 100%;
+            max-width: 760px;
+        }
+
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: end;
+            margin-bottom: 12px;
+        }
+
+        .controls label {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .controls input,
+        .controls select,
+        .controls button,
+        .chat-input input,
+        .chat-input button {
+            padding: 8px;
+        }
+
+        .status-panel {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 12px;
+            font-size: 14px;
+        }
+
+        .chat-box {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            padding: 15px;
+            border-top: 4px solid #3498db;
+        }
+
+        .messages {
+            height: 340px;
+            overflow-y: auto;
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin-bottom: 10px;
+            background: #fafafa;
+        }
+
+        .msg {
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+
+        .sys-msg {
+            color: #666;
+            font-style: italic;
+        }
+
+        .error-msg {
+            color: #c0392b;
+        }
+
+        .chat-input {
+            display: flex;
+            gap: 8px;
+        }
+
+        .chat-input input {
+            flex-grow: 1;
+        }
+
+        button {
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
+    <h1>Encrypted vs. Unencrypted Chat</h1>
 
     <div class="controls">
-        <label><b>Tu Nombre:</b> <input type="text" id="username" value="Estudiante"></label>
+        <label>
+            <b>Your name</b>
+            <input type="text" id="username" placeholder="Enter your name">
+        </label>
+
+        <label>
+            <b>Communication mode</b>
+            <select id="mode">
+                <option value="ws">UNENCRYPTED (WS)</option>
+                <option value="wss">ENCRYPTED (WSS/TLS)</option>
+            </select>
+        </label>
+
+        <button id="reconnect-button" type="button">Reconnect current mode</button>
     </div>
 
-    <div class="container">
-        <!-- Chat No Cifrado -->
-        <div class="chat-box unencrypted">
-            <h2>Chat Texto Plano (WS)</h2>
-            <div id="messages-unencrypted" class="messages"></div>
-            <div class="chat-input">
-                <input type="text" id="input-unencrypted" placeholder="Escribe un mensaje...">
-                <button onclick="sendMessage('ws')">Enviar</button>
-            </div>
-        </div>
+    <div class="status-panel">
+        <span>WS: <strong id="status-ws">Disconnected</strong></span>
+        <span>WSS: <strong id="status-wss">Disconnected</strong></span>
+    </div>
 
-        <!-- Chat Cifrado -->
-        <div class="chat-box encrypted">
-            <h2>Chat Cifrado (WSS)</h2>
-            <div id="messages-encrypted" class="messages"></div>
-            <div class="chat-input">
-                <input type="text" id="input-encrypted" placeholder="Escribe un mensaje...">
-                <button onclick="sendMessage('wss')">Enviar</button>
-            </div>
+    <div class="chat-box">
+        <div id="messages" class="messages"></div>
+
+        <div class="chat-input">
+            <input type="text" id="message-input" placeholder="Type a message...">
+            <button id="send-button" type="button">Send</button>
         </div>
     </div>
 
     <script>
-        // Conexiones a los puertos definidos en el backend
-        const wsPlain = new WebSocket("ws://127.0.0.1:8080");
-        const wsSecure = new WebSocket("wss://127.0.0.1:8443");
+        const endpoints = {
+            ws: "ws://127.0.0.1:8080",
+            wss: "wss://127.0.0.1:8443"
+        };
 
-        function setupWebSocket(ws, displayElementId) {
-            const display = document.getElementById(displayElementId);
+        const labels = {
+            ws: "UNENCRYPTED",
+            wss: "ENCRYPTED"
+        };
 
-            ws.onmessage = (event) => {
-                const data = JSON.parse(event.data);
-                let html = "";
-                
-                if (data.type === "system") {
-                    html = `<div class="msg sys-msg">[Sistema]: ${data.message}</div>`;
-                } else if (data.type === "chat") {
-                    html = `<div class="msg"><b>${data.sender}</b>: ${data.message} <small>(${new Date(data.timestamp).toLocaleTimeString()})</small></div>`;
-                } else if (data.type === "error") {
-                    html = `<div class="msg" style="color:red">[Error]: ${data.message}</div>`;
-                }
-                
-                display.innerHTML += html;
-                display.scrollTop = display.scrollHeight;
+        const sockets = {
+            ws: null,
+            wss: null
+        };
+
+        const messages = document.getElementById("messages");
+        const modeSelect = document.getElementById("mode");
+        const messageInput = document.getElementById("message-input");
+
+        function appendMessage(text, className = "msg") {
+            const element = document.createElement("div");
+            element.className = className;
+            element.textContent = text;
+            messages.appendChild(element);
+            messages.scrollTop = messages.scrollHeight;
+        }
+
+        function setStatus(type, text) {
+            document.getElementById(`status-${type}`).textContent = text;
+        }
+
+        function connect(type) {
+            const currentSocket = sockets[type];
+
+            if (
+                currentSocket &&
+                (currentSocket.readyState === WebSocket.OPEN ||
+                    currentSocket.readyState === WebSocket.CONNECTING)
+            ) {
+                return;
+            }
+
+            setStatus(type, "Connecting...");
+
+            const socket = new WebSocket(endpoints[type]);
+            sockets[type] = socket;
+
+            socket.onopen = () => {
+                if (sockets[type] !== socket) return;
+                setStatus(type, "Connected");
             };
 
-            ws.onerror = () => {
-                display.innerHTML += `<div class="msg" style="color:red">[Error de red] No se pudo conectar.</div>`;
+            socket.onmessage = (event) => {
+                let data;
+
+                try {
+                    data = JSON.parse(event.data);
+                } catch {
+                    appendMessage(
+                        `[${labels[type]}] Invalid server response.`,
+                        "msg error-msg"
+                    );
+                    return;
+                }
+
+                if (data.type === "system") {
+                    appendMessage(
+                        `[System][${labels[type]}] ${data.message}`,
+                        "msg sys-msg"
+                    );
+                    return;
+                }
+
+                if (data.type === "error") {
+                    appendMessage(
+                        `[Error][${labels[type]}] ${data.message}`,
+                        "msg error-msg"
+                    );
+                    return;
+                }
+
+                if (data.type === "chat") {
+                    const time = data.timestamp
+                        ? new Date(data.timestamp).toLocaleTimeString()
+                        : "";
+
+                    appendMessage(
+                        `[${labels[type]}] ${data.sender}: ${data.message}` +
+                        (time ? ` (${time})` : "")
+                    );
+                }
+            };
+
+            socket.onerror = () => {
+                if (sockets[type] !== socket) return;
+
+                setStatus(type, "Error");
+                appendMessage(
+                    `[${labels[type]}] Could not establish the connection. ` +
+                    (type === "wss"
+                        ? "If the certificate is self-signed, check the README and reconnect."
+                        : "Make sure the server is running."),
+                    "msg error-msg"
+                );
+            };
+
+            socket.onclose = () => {
+                if (sockets[type] !== socket) return;
+                setStatus(type, "Disconnected");
             };
         }
 
-        setupWebSocket(wsPlain, "messages-unencrypted");
-        setupWebSocket(wsSecure, "messages-encrypted");
+        function sendMessage() {
+            const type = modeSelect.value;
+            const socket = sockets[type];
+            const sender = document.getElementById("username").value.trim();
+            const message = messageInput.value.trim();
 
-        function sendMessage(type) {
-            const sender = document.getElementById("username").value || "Anonymous";
-            const isPlain = type === 'ws';
-            const inputElement = document.getElementById(isPlain ? "input-unencrypted" : "input-encrypted");
-            const message = inputElement.value;
+            if (!sender) {
+                appendMessage(
+                    "[Error] Enter your name before sending a message.",
+                    "msg error-msg"
+                );
+                document.getElementById("username").focus();
+                return;
+            }
 
             if (!message) return;
 
-            const payload = JSON.stringify({ sender, message });
-
-            if (isPlain && wsPlain.readyState === WebSocket.OPEN) {
-                wsPlain.send(payload);
-            } else if (!isPlain && wsSecure.readyState === WebSocket.OPEN) {
-                wsSecure.send(payload);
+            if (!socket || socket.readyState !== WebSocket.OPEN) {
+                appendMessage(
+                    `[${labels[type]}] No connection is available. ` +
+                    "Start the server or use the reconnect button.",
+                    "msg error-msg"
+                );
+                return;
             }
 
-            inputElement.value = "";
+            socket.send(JSON.stringify({ sender, message }));
+            messageInput.value = "";
+            messageInput.focus();
         }
+
+        document.getElementById("send-button").addEventListener("click", sendMessage);
+
+        document
+            .getElementById("reconnect-button")
+            .addEventListener("click", () => connect(modeSelect.value));
+
+        messageInput.addEventListener("keydown", (event) => {
+            if (event.key === "Enter") {
+                sendMessage();
+            }
+        });
+
+        connect("ws");
+        connect("wss");
     </script>
 </body>
 </html>
