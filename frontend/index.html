@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat Cifrado vs No Cifrado</title>
+    <style>
+        body { font-family: Arial, sans-serif; display: flex; flex-direction: column; align-items: center; background-color: #f4f4f9; margin: 0; padding: 20px; }
+        .controls { margin-bottom: 20px; }
+        .container { display: flex; gap: 20px; width: 100%; max-width: 900px; }
+        .chat-box { flex: 1; background: white; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); padding: 15px; display: flex; flex-direction: column; }
+        .messages { flex-grow: 1; height: 300px; overflow-y: auto; border: 1px solid #ccc; padding: 10px; margin-bottom: 10px; background: #fafafa; }
+        .msg { margin-bottom: 8px; font-size: 14px; }
+        .sys-msg { color: gray; font-style: italic; }
+        .chat-input { display: flex; }
+        .chat-input input { flex-grow: 1; padding: 8px; }
+        .chat-input button { padding: 8px 15px; cursor: pointer; }
+        h2 { font-size: 18px; text-align: center; }
+        .unencrypted { border-top: 4px solid #e74c3c; }
+        .encrypted { border-top: 4px solid #2ecc71; }
+    </style>
+</head>
+<body>
+
+    <div class="controls">
+        <label><b>Tu Nombre:</b> <input type="text" id="username" value="Estudiante"></label>
+    </div>
+
+    <div class="container">
+        <!-- Chat No Cifrado -->
+        <div class="chat-box unencrypted">
+            <h2>Chat Texto Plano (WS)</h2>
+            <div id="messages-unencrypted" class="messages"></div>
+            <div class="chat-input">
+                <input type="text" id="input-unencrypted" placeholder="Escribe un mensaje...">
+                <button onclick="sendMessage('ws')">Enviar</button>
+            </div>
+        </div>
+
+        <!-- Chat Cifrado -->
+        <div class="chat-box encrypted">
+            <h2>Chat Cifrado (WSS)</h2>
+            <div id="messages-encrypted" class="messages"></div>
+            <div class="chat-input">
+                <input type="text" id="input-encrypted" placeholder="Escribe un mensaje...">
+                <button onclick="sendMessage('wss')">Enviar</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Conexiones a los puertos definidos en el backend
+        const wsPlain = new WebSocket("ws://127.0.0.1:8080");
+        const wsSecure = new WebSocket("wss://127.0.0.1:8443");
+
+        function setupWebSocket(ws, displayElementId) {
+            const display = document.getElementById(displayElementId);
+
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                let html = "";
+                
+                if (data.type === "system") {
+                    html = `<div class="msg sys-msg">[Sistema]: ${data.message}</div>`;
+                } else if (data.type === "chat") {
+                    html = `<div class="msg"><b>${data.sender}</b>: ${data.message} <small>(${new Date(data.timestamp).toLocaleTimeString()})</small></div>`;
+                } else if (data.type === "error") {
+                    html = `<div class="msg" style="color:red">[Error]: ${data.message}</div>`;
+                }
+                
+                display.innerHTML += html;
+                display.scrollTop = display.scrollHeight;
+            };
+
+            ws.onerror = () => {
+                display.innerHTML += `<div class="msg" style="color:red">[Error de red] No se pudo conectar.</div>`;
+            };
+        }
+
+        setupWebSocket(wsPlain, "messages-unencrypted");
+        setupWebSocket(wsSecure, "messages-encrypted");
+
+        function sendMessage(type) {
+            const sender = document.getElementById("username").value || "Anonymous";
+            const isPlain = type === 'ws';
+            const inputElement = document.getElementById(isPlain ? "input-unencrypted" : "input-encrypted");
+            const message = inputElement.value;
+
+            if (!message) return;
+
+            const payload = JSON.stringify({ sender, message });
+
+            if (isPlain && wsPlain.readyState === WebSocket.OPEN) {
+                wsPlain.send(payload);
+            } else if (!isPlain && wsSecure.readyState === WebSocket.OPEN) {
+                wsSecure.send(payload);
+            }
+
+            inputElement.value = "";
+        }
+    </script>
+</body>
+</html>
