@@ -107,4 +107,4 @@ For a basic test, open the frontend in two windows, use different names such as 
 ## Project resources
 
 - [Wireshark test](docs/wireshark-test.md)
-- [Team video]()
+- [Team video (canva presentation)](https://canva.link/p1ilnfac8cxiqpf)
