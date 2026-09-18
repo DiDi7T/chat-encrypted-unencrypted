@@ -1,0 +1,2 @@
+# Los certificados y, especialmente, las claves privadas se generan localmente.
+*.pem
